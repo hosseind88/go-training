@@ -12,6 +12,9 @@ import (
 func Register(c *gin.Context) {
 	var req models.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		if handled := handleValidationError(c, err); handled {
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
 		return
 	}
@@ -29,6 +32,9 @@ func Register(c *gin.Context) {
 func Login(c *gin.Context) {
 	var req models.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		if handled := handleValidationError(c, err); handled {
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
 		return
 	}

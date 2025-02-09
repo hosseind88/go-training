@@ -43,6 +43,7 @@ func (s *AuthService) Register(req models.RegisterRequest) (*models.AuthResponse
 		Username:         req.Username,
 		Email:            req.Email,
 		Password:         string(hashedPassword),
+		Phone:            req.Phone,
 		VerificationCode: verificationCode,
 		EmailVerified:    false,
 		MFAEnabled:       false,
@@ -52,14 +53,13 @@ func (s *AuthService) Register(req models.RegisterRequest) (*models.AuthResponse
 		return nil, fmt.Errorf("failed to create user: %v", err)
 	}
 
-	// Send verification email
-	if err := sendVerificationEmail(user.Email, verificationCode); err != nil {
-		// Log the error but don't return it to the user
-		log.Printf("Failed to send verification email: %v", err)
+	// Send verification code
+	if err := sendVerificationPhone(user.Phone, verificationCode); err != nil {
+		log.Printf("Failed to send verification code: %v", err)
 	}
 
 	return &models.AuthResponse{
-		NextFlow: "EmailVerification",
+		NextFlow: "PhoneVerification",
 	}, nil
 }
 
@@ -84,13 +84,13 @@ func (s *AuthService) Login(req models.LoginRequest) (*models.AuthResponse, erro
 			return nil, fmt.Errorf("failed to update verification code: %v", err)
 		}
 
-		// Resend verification email
-		if err := sendVerificationEmail(user.Email, newCode); err != nil {
-			log.Printf("Failed to resend verification email: %v", err)
+		// Resend verification code
+		if err := sendVerificationPhone(user.Phone, newCode); err != nil {
+			log.Printf("Failed to resend verification phone: %v", err)
 		}
 
 		return &models.AuthResponse{
-			NextFlow: "EmailVerification",
+			NextFlow: "PhoneVerification",
 		}, nil
 	}
 
@@ -303,11 +303,9 @@ func generateJWT(user models.User) (string, error) {
 	return tokenString, nil
 }
 
-func sendVerificationEmail(email, code string) error {
-	// TODO: Implement email sending logic
-	// For now, just log the code
-	log.Printf("Verification code for %s: %s", email, code)
-	return nil
+func sendVerificationPhone(phone, code string) error {
+	smsService := NewSMSService()
+	return smsService.SendVerificationCode(phone, code, "Your verification code is: %s")
 }
 
 func sendPasswordResetEmail(email, code string) error {
