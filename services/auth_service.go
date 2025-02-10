@@ -76,7 +76,7 @@ func (s *AuthService) Login(req models.LoginRequest) (*models.AuthResponse, erro
 		return nil, errors.New("invalid credentials")
 	}
 
-	if !user.EmailVerified {
+	if !user.PhoneVerified {
 		// Regenerate verification code if needed
 		newCode := generateRandomCode()
 		user.VerificationCode = newCode
@@ -211,6 +211,48 @@ func (s *AuthService) VerifyEmail(email, code string) (*models.AuthResponse, err
 	return &models.AuthResponse{
 		Token:    token,
 		PrevFlow: "EmailVerification",
+	}, nil
+}
+
+func (s *AuthService) VerifyPhone(phone, code string) (*models.AuthResponse, error) {
+	var user models.User
+	if err := s.db.Where("phone = ?", phone).First(&user).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, errors.New("user not found")
+		}
+		return nil, fmt.Errorf("database error: %v", err)
+	}
+
+	if user.PhoneVerified {
+		return nil, errors.New("phone already verified")
+	}
+
+	if user.VerificationCode != code {
+		return nil, errors.New("invalid verification code")
+	}
+
+	user.PhoneVerified = true
+	user.VerificationCode = ""
+
+	if err := s.db.Save(&user).Error; err != nil {
+		return nil, fmt.Errorf("failed to update user: %v", err)
+	}
+
+	if user.MFAEnabled {
+		return &models.AuthResponse{
+			NextFlow: "TwoFactorGoogle",
+			PrevFlow: "PhoneVerification",
+		}, nil
+	}
+
+	token, err := generateJWT(user)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate token: %v", err)
+	}
+
+	return &models.AuthResponse{
+		Token:    token,
+		PrevFlow: "PhoneVerification",
 	}, nil
 }
 

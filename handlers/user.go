@@ -69,6 +69,29 @@ func VerifyEmail(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+func VerifyPhone(c *gin.Context) {
+	var req struct {
+		Phone string `json:"phone" binding:"required"`
+		Code  string `json:"code" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		if handled := handleValidationError(c, err); handled {
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+		return
+	}
+
+	authService := services.NewAuthService()
+	response, err := authService.VerifyPhone(req.Phone, req.Code)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
 func EnableMFA(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 

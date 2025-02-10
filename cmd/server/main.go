@@ -8,9 +8,15 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
 	config.Init()
 
 	r := gin.Default()
@@ -24,6 +30,7 @@ func main() {
 		auth.POST("/register", rateLimiter.RateLimit(), handlers.Register)
 		auth.POST("/login", rateLimiter.RateLimit(), handlers.Login)
 		auth.POST("/verify-email", handlers.VerifyEmail)
+		auth.POST("/verify-phone", handlers.VerifyPhone)
 		auth.POST("/forgot-password", handlers.ForgotPassword)
 		auth.POST("/reset-password", handlers.ResetPassword)
 
