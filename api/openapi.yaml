@@ -1,8 +1,8 @@
 openapi: 3.0.0
 info:
-  title: Authentication API
+  title: Authentication and Account Management API
   version: 1.0.0
-  description: API for user authentication with MFA support
+  description: API for user authentication, account management, and team collaboration
 
 servers:
   - url: http://localhost:8080
@@ -16,21 +16,36 @@ components:
       bearerFormat: JWT
 
   schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Invalid input"
+
     RegisterRequest:
       type: object
       required:
         - username
         - email
         - password
+        - phone
       properties:
         username:
           type: string
+          example: "johndoe"
         email:
           type: string
           format: email
+          example: "john@example.com"
         password:
           type: string
+          format: password
           minLength: 8
+          example: "securepass123"
+        phone:
+          type: string
+          example: "+1234567890"
 
     LoginRequest:
       type: object
@@ -41,20 +56,24 @@ components:
         email:
           type: string
           format: email
+          example: "john@example.com"
         password:
           type: string
+          format: password
+          example: "securepass123"
 
-    VerifyEmailRequest:
+    AuthResponse:
       type: object
-      required:
-        - email
-        - code
       properties:
-        email:
+        token:
           type: string
-          format: email
-        code:
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        next:
           type: string
+          example: "PhoneVerification"
+        prev:
+          type: string
+          example: "Login"
 
     VerifyMFARequest:
       type: object
@@ -65,8 +84,59 @@ components:
           type: string
           minLength: 6
           maxLength: 6
+          example: "123456"
 
-    ForgotPasswordRequest:
+    MFAResponse:
+      type: object
+      properties:
+        secret:
+          type: string
+          example: "JBSWY3DPEHPK3PXP"
+        qr_code_url:
+          type: string
+          example: "otpauth://totp/Example:john@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Example"
+
+    CreateAccountRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          example: "My Team"
+        description:
+          type: string
+          example: "My awesome team"
+
+    AccountResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        role:
+          type: string
+          enum: [owner, member]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    AccountListResponse:
+      type: object
+      properties:
+        accounts:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccountResponse'
+
+    InviteMemberRequest:
       type: object
       required:
         - email
@@ -74,50 +144,13 @@ components:
         email:
           type: string
           format: email
-
-    ResetPasswordRequest:
-      type: object
-      required:
-        - code
-        - password
-      properties:
-        code:
-          type: string
-        password:
-          type: string
-          minLength: 8
-
-    AuthResponse:
-      type: object
-      properties:
-        token:
-          type: string
-        next:
-          type: string
-        prev:
-          type: string
-
-    MFAResponse:
-      type: object
-      properties:
-        secret:
-          type: string
-        qr_code_url:
-          type: string
-
-    ErrorResponse:
-      type: object
-      properties:
-        error:
-          type: string
+          example: "member@example.com"
 
 paths:
   /auth/register:
     post:
       summary: Register a new user
-      description: Creates a new user account and sends email verification
-      tags:
-        - Authentication
+      tags: [Authentication]
       requestBody:
         required: true
         content:
@@ -125,27 +158,23 @@ paths:
             schema:
               $ref: '#/components/schemas/RegisterRequest'
       responses:
-        '201':
+        201:
           description: User registered successfully
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthResponse'
-        '400':
+        400:
           description: Invalid input
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '429':
-          description: Too many requests
+                $ref: '#/components/schemas/Error'
 
   /auth/login:
     post:
       summary: Login user
-      description: Authenticates user credentials and returns JWT token or next auth flow
-      tags:
-        - Authentication
+      tags: [Authentication]
       requestBody:
         required: true
         content:
@@ -153,75 +182,43 @@ paths:
             schema:
               $ref: '#/components/schemas/LoginRequest'
       responses:
-        '200':
+        200:
           description: Login successful
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthResponse'
-        '401':
+        401:
           description: Invalid credentials
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '429':
-          description: Too many requests
-
-  /auth/verify-email:
-    post:
-      summary: Verify email address
-      description: Verifies user's email using the verification code
-      tags:
-        - Authentication
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/VerifyEmailRequest'
-      responses:
-        '200':
-          description: Email verified successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AuthResponse'
-        '400':
-          description: Invalid verification code
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/Error'
 
   /auth/mfa/enable:
     post:
-      summary: Enable MFA
-      description: Enables Multi-Factor Authentication for the user
-      tags:
-        - MFA
+      summary: Enable MFA for user
+      tags: [Authentication]
       security:
         - BearerAuth: []
       responses:
-        '200':
+        200:
           description: MFA setup information
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/MFAResponse'
-        '401':
+        401:
           description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/Error'
 
   /auth/mfa/verify:
     post:
       summary: Verify MFA code
-      description: Verifies the MFA code during login
-      tags:
-        - MFA
+      tags: [Authentication]
       security:
         - BearerAuth: []
       requestBody:
@@ -231,34 +228,86 @@ paths:
             schema:
               $ref: '#/components/schemas/VerifyMFARequest'
       responses:
-        '200':
+        200:
           description: MFA verification successful
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthResponse'
-        '400':
-          description: Invalid MFA code
+        400:
+          description: Invalid code
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/Error'
 
-  /auth/forgot-password:
+  /accounts:
     post:
-      summary: Request password reset
-      description: Initiates the password reset process
-      tags:
-        - Authentication
+      summary: Create a new account
+      tags: [Accounts]
+      security:
+        - BearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ForgotPasswordRequest'
+              $ref: '#/components/schemas/CreateAccountRequest'
       responses:
-        '200':
-          description: Password reset email sent
+        201:
+          description: Account created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    get:
+      summary: List user's accounts
+      tags: [Accounts]
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: List of accounts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountListResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /accounts/{accountId}/invitations:
+    post:
+      summary: Invite a member to an account
+      tags: [Accounts]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InviteMemberRequest'
+      responses:
+        200:
+          description: Invitation sent successfully
           content:
             application/json:
               schema:
@@ -266,22 +315,30 @@ paths:
                 properties:
                   message:
                     type: string
+                    example: "Invitation sent successfully"
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
-  /auth/reset-password:
+  /invitations/{invitationId}/accept:
     post:
-      summary: Reset password
-      description: Resets user password using reset code
-      tags:
-        - Authentication
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ResetPasswordRequest'
+      summary: Accept an account invitation
+      tags: [Accounts]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: invitationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
       responses:
-        '200':
-          description: Password reset successful
+        200:
+          description: Invitation accepted successfully
           content:
             application/json:
               schema:
@@ -289,9 +346,41 @@ paths:
                 properties:
                   message:
                     type: string
-        '400':
-          description: Invalid reset code or password
+                    example: "Invitation accepted"
+        401:
+          description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/Error'
+
+  /invitations/{invitationId}/decline:
+    post:
+      summary: Decline an account invitation
+      tags: [Accounts]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: invitationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Invitation declined successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Invitation declined"
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'

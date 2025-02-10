@@ -346,8 +346,10 @@ func generateJWT(user models.User) (string, error) {
 }
 
 func sendVerificationPhone(phone, code string) error {
-	smsService := NewSMSService()
-	return smsService.SendVerificationCode(phone, code, "Your verification code is: %s")
+	// smsService := NewSMSService()
+	// return smsService.SendVerificationCode(phone, code, "Your verification code is: %s")
+	log.Printf("Verification code for %s: %s", phone, code)
+	return nil
 }
 
 func sendPasswordResetEmail(email, code string) error {

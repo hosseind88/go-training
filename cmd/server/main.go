@@ -21,12 +21,10 @@ func main() {
 
 	r := gin.Default()
 
-	// Create rate limiter: 5 requests per minute
 	rateLimiter := middleware.NewRateLimiter(5, time.Minute)
 
 	auth := r.Group("/auth")
 	{
-		// Apply rate limiter to login and register endpoints
 		auth.POST("/register", rateLimiter.RateLimit(), handlers.Register)
 		auth.POST("/login", rateLimiter.RateLimit(), handlers.Login)
 		auth.POST("/verify-email", handlers.VerifyEmail)
@@ -34,12 +32,26 @@ func main() {
 		auth.POST("/forgot-password", handlers.ForgotPassword)
 		auth.POST("/reset-password", handlers.ResetPassword)
 
-		// Protected routes (require JWT)
 		authorized := auth.Use(middleware.AuthRequired())
 		{
 			authorized.POST("/mfa/enable", handlers.EnableMFA)
 			authorized.POST("/mfa/verify", handlers.VerifyMFA)
 		}
+	}
+
+	accounts := r.Group("/accounts")
+	accounts.Use(middleware.AuthRequired())
+	{
+		accounts.POST("", handlers.CreateAccount)
+		accounts.GET("", handlers.ListAccounts)
+		accounts.POST("/:accountId/invitations", handlers.InviteMember)
+	}
+
+	invitations := r.Group("/invitations")
+	invitations.Use(middleware.AuthRequired())
+	{
+		invitations.POST("/:invitationId/accept", handlers.AcceptInvitation)
+		invitations.POST("/:invitationId/decline", handlers.DeclineInvitation)
 	}
 
 	log.Fatal(r.Run(":8080"))
